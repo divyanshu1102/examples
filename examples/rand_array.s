@@ -1,7 +1,6 @@
 /******************************************************************************
 * @file rand_array.s
-* @author Christopher D. McMurrough
-******************************************************************************/
+* @author Christopher D. McMurrough******************************************************************************/
  
 .global main
 .func main
@@ -9,8 +8,14 @@
 main:
     BL _seedrand            @ seed random number generator with current time
     MOV R0, #0              @ initialze index variable
+    MOV R4, #0
+    ADD R3, R3, #250
+    ADD R5,R5, #250
+    ADD R5,R5, #250
+    ADD R5,R5, #250
+    @MOV R5, #999
 writeloop:
-    CMP R0, #100            @ check to see if we are done iterating
+    CMP R0, #10            @ check to see if we are done iterating
     BEQ writedone           @ exit loop if done
     LDR R1, =a              @ get address of a
     LSL R2, R0, #2          @ multiply index*4 to get array offset
@@ -19,14 +24,32 @@ writeloop:
     PUSH {R2}               @ backup element address before procedure call
     BL _getrand             @ get a random number
     POP {R2}                @ restore element address
-    STR R0, [R2]            @ write the address of a[i] to a[i]
+    
+    @LSR R0, R0, #21     @This was an alternative to using MOD
+    PUSH {R1}
+    PUSH {R2}
+			@ insert call for _mod_unsigned procedure
+    MOV R1, R0
+    MOV R2, #1000
+    BL _mod_unsigned
+
+    POP {R2}
+    POP {R1}
+
+    CMP R4, R0		@Compare R0, R4
+    MOVLE R4, R0	@ find maximum
+    
+    CMP R5, R0		@ compare R0, R3
+    MOVGT R5, R0	@ find minimum
+
+    STR R0, [R2]            @ write R0 to the address of a[i]
     POP {R0}                @ restore iterator
     ADD R0, R0, #1          @ increment index
     B   writeloop           @ branch to next loop iteration
 writedone:
     MOV R0, #0              @ initialze index variable
 readloop:
-    CMP R0, #100            @ check to see if we are done iterating
+    CMP R0, #10            @ check to see if we are done iterating
     BEQ readdone            @ exit loop if done
     LDR R1, =a              @ get address of a
     LSL R2, R0, #2          @ multiply index*4 to get array offset
@@ -44,8 +67,38 @@ readloop:
     ADD R0, R0, #1          @ increment index
     B   readloop            @ branch to next loop iteration
 readdone:
-    B _exit                 @ exit if done
     
+    PUSH {R0}
+    PUSH {R1}
+
+    LDR R0, =max
+    MOV R1,R4
+    BL printf		@ call printf function to print maximum
+
+    LDR R0, =mini
+    MOV R1, R5
+    BL printf		@ call printf to print minimum
+    
+    POP {R1}		@ restore R1
+    POP {R0}		@resote R0
+    B _exit             @ exit if done
+
+_mod_unsigned:
+    CMP R2,R1
+    MOVHS R0,R1
+    MOVHS R1,R2
+    MOVHS R2,R0
+    MOV R0, #0
+    B _modloopcheck
+    _modloop:
+	ADD R0, R0, #1
+	SUB R1, R1, R2
+    _modloopcheck:
+	CMP R1, R2
+	BHS _modloop
+MOV R0, R1
+MOV PC, LR
+
 _exit:  
     MOV R7, #4              @ write syscall, 4
     MOV R0, #1              @ output stream to monitor, 1
@@ -77,8 +130,10 @@ _getrand:
 .data
 
 .balign 4
-a:              .skip       400
+a:              .skip      40 
 printf_str:     .asciz      "a[%d] = %d\n"
 debug_str:
 .asciz "R%-2d   0x%08X  %011d \n"
 exit_str:       .ascii      "Terminating program.\n"
+max:  		.asciz 	    "Maximum= %d\n"
+mini: 		.asciz	    "Minimum= %d\n"
